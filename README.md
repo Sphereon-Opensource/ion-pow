@@ -5,7 +5,7 @@
   <br>
 </h1>
 
-[![CI](https://github.com/Sphereon-Opensource/ion-pow/actions/workflows/main.yaml/badge.svg)](https://github.com/Sphereon-Opensource/ion-pow/actions/workflows/main.yaml)  [![codecov](https://codecov.io/gh/Sphereon-Opensource/wellknown-dids-client/branch/develop/graph/badge.svg?token=9P1JGUYA35)](https://codecov.io/gh/Sphereon-Opensource/wellknown-dids-client) [![NPM Version](https://img.shields.io/npm/v/@sphereon/ion-pow.svg)](https://npm.im/@sphereon/ion-pow)
+[![CI](https://github.com/Sphereon-Opensource/ion-pow/actions/workflows/main.yaml/badge.svg)](https://github.com/Sphereon-Opensource/ion-pow/actions/workflows/main.yaml)  [![codecov](https://codecov.io/gh/Sphereon-Opensource/ion-pow/branch/develop/graph/badge.svg)](https://codecov.io/gh/Sphereon-Opensource/ion-pow) [![NPM Version](https://img.shields.io/npm/v/@sphereon/ion-pow.svg)](https://npm.im/@sphereon/ion-pow)
 
 ### ION-pow
 The ION Proof of Work client allows to submit ION create, update and delete requests to an ION node which is using a
