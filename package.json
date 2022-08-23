@@ -1,7 +1,7 @@
 {
   "name": "@sphereon/ion-pow",
   "description": "ION Proof of Work to anchor ION DIDs",
-  "version": "0.1.9-unstable.9",
+  "version": "0.2.0",
   "browser": "dist/index.js",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
