@@ -48,7 +48,14 @@ const solutionResponse = {
   },
 };
 describe('ION Pow', () => {
-  it('should return DID resolution response on valid DID Ion create request', async () => {
+  it('should return DID resolution response on valid DID Ion create request without challenges enabled', async () => {
+    nock('https://beta.ion.msidentity.com').post('/api/v1.0/operations').reply(200, solutionResponse);
+
+    const ionPow = new IonPoW({ challengeEnabled: false });
+    await expect(ionPow.submit(request)).resolves.toEqual(JSON.stringify(solutionResponse));
+  });
+
+  it('should return DID resolution response on valid DID Ion create request with challenges enabled', async () => {
     nock('https://beta.ion.msidentity.com').get('/api/v1.0/proof-of-work-challenge').reply(200, {
       challengeNonce: '4541d4a5c3e8bca920ba4ff96311e002d9491715415f8e85dfa40f93215926a7',
       validDurationInMinutes: 10,

@@ -1,6 +1,6 @@
+import { Argon2, Argon2Mode, HashResult } from '@sphereon/isomorphic-argon2';
 import { fetch } from 'cross-fetch';
 import Debug from 'debug';
-import { argon2id } from 'hash-wasm';
 import * as u8a from 'uint8arrays';
 
 import { AnswerNonce, ChallengeBody, ChallengeResult } from './types';
@@ -10,20 +10,26 @@ const debug = Debug('sphereon:ion:pow');
 export class IonProofOfWork {
   private readonly solutionEndpoint: string;
   private readonly challengeEndpoint: string;
-  constructor(
-    { challengeEndpoint, solutionEndpoint } = {
-      challengeEndpoint: 'https://beta.ion.msidentity.com/api/v1.0/proof-of-work-challenge',
-      solutionEndpoint: 'https://beta.ion.msidentity.com/api/v1.0/operations',
-    }
-  ) {
-    this.challengeEndpoint = challengeEndpoint;
-    this.solutionEndpoint = solutionEndpoint;
+  private readonly challengeEnabled: boolean;
+
+  constructor(opts?: { challengeEnabled?: boolean; challengeEndpoint?: string; solutionEndpoint?: string }) {
+    this.challengeEnabled = opts?.challengeEnabled === undefined ? true : opts.challengeEnabled;
+    this.challengeEndpoint = opts?.challengeEndpoint || 'https://beta.ion.msidentity.com/api/v1.0/proof-of-work-challenge';
+    this.solutionEndpoint = opts?.solutionEndpoint || 'https://beta.ion.msidentity.com/api/v1.0/operations';
   }
 
   async submit(requestJson: string): Promise<string> {
-    const challengeResult = await this.retrieveChallenge();
-    const answerNonce = await this.generateAnswerNonce({ requestJson, challengeResult });
-    return await this.supplySolution({ requestJson, challengeNonce: challengeResult.challengeNonce, answerNonce });
+    if (this.challengeEnabled) {
+      const challengeResult = await this.retrieveChallenge();
+      const answerNonce = await this.generateAnswerNonce({ requestJson, challengeResult });
+      return await this.supplySolution({
+        requestJson,
+        challengeNonce: challengeResult.challengeNonce,
+        answerNonce,
+      });
+    } else {
+      return await this.supplySolution({ requestJson });
+    }
   }
 
   private async supplySolution({
@@ -32,18 +38,29 @@ export class IonProofOfWork {
     answerNonce,
   }: {
     requestJson: string;
-    challengeNonce: string;
-    answerNonce: AnswerNonce;
+    challengeNonce?: string;
+    answerNonce?: AnswerNonce;
   }) {
+    if (this.challengeEnabled && (!challengeNonce || !answerNonce)) {
+      throw new Error('When using a challenge the challenge and answer nonce need to be present');
+    }
+    const defaultHeaders = {
+      'Content-Type': 'application/json',
+    };
+    const headers =
+      this.challengeEnabled && answerNonce && challengeNonce
+        ? {
+            ...defaultHeaders,
+            'Challenge-Nonce': challengeNonce!,
+            'Answer-Nonce': answerNonce.base10,
+          }
+        : { ...defaultHeaders };
+
     const solutionResponse = await fetch(this.solutionEndpoint, {
       method: 'POST',
       mode: 'cors',
       body: requestJson,
-      headers: {
-        'Challenge-Nonce': challengeNonce,
-        'Answer-Nonce': answerNonce.base10,
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     // Unfortunately we do not always get a JSON response back from the above endpoint, so we resort to .text()
@@ -67,29 +84,29 @@ export class IonProofOfWork {
     const { challengeNonce, validDurationInMilliseconds, validDurationInMinutes, largestAllowedHash } = challengeResult;
     debug(`Solving for body:\n${requestJson}`);
     const startTime = Date.now();
-    let answerHash = '';
+    let currentHash: HashResult;
     let answerNonce: AnswerNonce = { base16: '', base10: '' };
 
     do {
       answerNonce = this.generateNonce();
-      answerHash = await argon2id({
-        password: answerNonce.base16 + requestJson,
-        salt: u8a.fromString(challengeNonce, 'base16'),
-        parallelism: 1,
+      const password = answerNonce.base16 + requestJson;
+      const salt = u8a.fromString(challengeNonce, 'base16');
+      currentHash = await Argon2.hash(password, salt, {
         iterations: 1,
-        memorySize: 1000,
+        parallelism: 1,
+        memory: 1000,
         hashLength: 32, // output size = 32 bytes
-        outputType: 'hex',
+        mode: Argon2Mode.Argon2id,
       });
-      debug(`computed answer hash: ${answerHash}`);
-    } while (answerHash > largestAllowedHash && Date.now() - startTime < validDurationInMilliseconds);
+      debug(`computed answer hash: ${currentHash}`);
+    } while (currentHash.hex > largestAllowedHash && Date.now() - startTime < validDurationInMilliseconds);
 
     if (Date.now() - startTime > validDurationInMilliseconds) {
       throw Error(`Valid duration of ${validDurationInMinutes} minutes has been exceeded since ${startTime}`);
     }
 
     debug(`largest allowed: ${largestAllowedHash}`);
-    debug(`valid answer hash: ${answerHash}`);
+    debug(`valid answer hash: ${currentHash.hex}`);
     return answerNonce;
   }
 
